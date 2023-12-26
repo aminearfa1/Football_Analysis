@@ -1,0 +1,84 @@
+library(dplyr)
+library(ggplot2)
+library(RColorBrewer)
+library(gridExtra)
+
+# Lire les données
+data <- read.csv('goalscorers.csv')
+results <- read.csv('results.csv')
+
+# Exclure les lignes avec des valeurs NA dans la colonne 'scorer'
+data_clean <- na.omit(data)
+results_clean <- na.omit(results)
+
+# Préparer les données pour le diagramme circulaire global
+player_goals <- data_clean %>%
+  group_by(scorer) %>%
+  summarise(total_goals = n(), .groups = "drop") %>%
+  arrange(total_goals) %>%
+  mutate(percent = round(total_goals / sum(total_goals) * 100, 2))
+
+# Sélectionner le top 10 des buteurs
+top_scorers <- tail(player_goals, 10)
+
+# Palette de couleurs
+color_palette <- colorRampPalette(brewer.pal(9, "Set1"))(length(top_scorers$scorer))
+
+# Fonction pour créer un diagramme circulaire avec pourcentages
+create_pie_chart <- function(data, title) {
+  ggplot(data, aes(x="", y=total_goals, fill=scorer)) +
+    geom_bar(stat="identity", width=1) +
+    coord_polar("y", start=0) +
+    scale_fill_manual(values=color_palette) +
+    theme_void() +
+    labs(title = title, x = "", y = "") +
+    geom_text(aes(label = percent), position=position_stack(vjust=0.5), color="black", size=3)
+}
+
+# Calcul des pourcentages
+total_goals_sum <- sum(top_scorers$total_goals)
+top_scorers <- top_scorers %>%
+  mutate(percent = round(total_goals / total_goals_sum * 100, 2))
+
+# Créer le diagramme circulaire global
+pie_chart_global <- create_pie_chart(top_scorers, "Top 10 des Buteurs")
+
+# Fusionner les données pour l'analyse domicile/extérieur
+merged_data <- merge(data_clean, results_clean, by = c("date", "home_team", "away_team"))
+merged_data <- merged_data %>%
+  mutate(context = ifelse(team == home_team, "Domicile", "Extérieur"))
+
+# Calcul des buts à domicile et à l'extérieur
+goals_home_away <- merged_data %>%
+  group_by(scorer, context) %>%
+  summarise(total_goals = n(), .groups = "drop") %>%
+  ungroup()
+
+# Sélectionner le top 10 des buteurs à domicile et à l'extérieur
+top_scorers_home <- goals_home_away %>%
+  filter(context == "Domicile") %>%
+  arrange(total_goals) %>%
+  tail(10)
+
+top_scorers_away <- goals_home_away %>%
+  filter(context == "Extérieur") %>%
+  arrange(total_goals) %>%
+  tail(10)
+
+# Calcul des pourcentages pour domicile
+total_goals_home_sum <- sum(top_scorers_home$total_goals)
+top_scorers_home <- top_scorers_home %>%
+  mutate(percent = round(total_goals / total_goals_home_sum * 100, 2))
+
+# Calcul des pourcentages pour extérieur
+total_goals_away_sum <- sum(top_scorers_away$total_goals)
+top_scorers_away <- top_scorers_away %>%
+  mutate(percent = round(total_goals / total_goals_away_sum * 100, 2))
+
+# Créer les diagrammes pour domicile et extérieur
+pie_chart_home <- create_pie_chart(top_scorers_home, "Top 10 des Buteurs à Domicile")
+pie_chart_away <- create_pie_chart(top_scorers_away, "Top 10 des Buteurs à l'Extérieur")
+
+# Afficher les trois figures en forme de triangle
+grid.arrange(pie_chart_global, pie_chart_home, pie_chart_away, nrow = 2, ncol = 2, layout_matrix = rbind(c(1, 1), c(2, 3)))
+
