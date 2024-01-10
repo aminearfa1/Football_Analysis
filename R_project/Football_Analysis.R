@@ -5,7 +5,9 @@ library(lubridate)
 library(ggthemes)
 library(viridis)
 library(patchwork)
-
+library(ggplot2)
+library(corrplot)
+library(fmsb)
 
 
 
@@ -173,3 +175,171 @@ plot4 <- ggplot(penalty_data, aes(x = score_difference, fill = penalty_match)) +
 
 # Afficher les deux diagrammes côte à côte
 grid.arrange(plot1, plot2, plot3, plot4, ncol = 2, nrow = 2)
+
+######################Analyse des performances des équipes dans les tournois majeurs#########################
+
+file_path <- "results.csv"
+results <- read.csv(file_path, header = TRUE, sep = ",", stringsAsFactors = FALSE)
+head(results)
+
+major_competitions <- c("FIFA World Cup", "UEFA Euro", "African Cup of Nations", "Copa América")
+# Créez une liste pour stocker les graphiques
+plots <- list()
+
+# Pour chaque compétition majeure
+for (comp in major_competitions) {
+  # Filtrez les données pour la compétition actuelle
+  data_comp <- results %>%
+    filter(tournament == comp) %>%
+    group_by(country = home_team) %>%
+    summarise(count = n()) %>%
+    top_n(5, count) %>%  
+    ungroup() %>%
+    arrange(desc(count))
+  
+  # Créez un graphique à barres empilées
+  p <- ggplot(data_comp, aes(x = reorder(country, -count), y = count, fill = country)) +
+    geom_bar(stat = "identity") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, vjust = 0.5),
+          axis.title.y = element_blank()) +
+    labs(title = comp, x = NULL, y = "Nombre de participations") +
+    scale_fill_brewer(palette = "Set3")  # Utilisez une palette de couleurs claires
+  
+  # Ajoutez le graphique à la liste
+  plots[[comp]] <- p
+}
+do.call(grid.arrange, c(plots, ncol = 1))
+
+################################
+
+
+# Fonction pour calculer et visualiser les taux de victoire à domicile et à l'extérieur
+create_win_rate_plot <- function(data, competition) {
+  comp_data <- data %>%
+    filter(tournament == competition) %>%
+    mutate(home_win = as.numeric(home_score > away_score),
+           away_win = as.numeric(away_score > home_score)) %>%
+    summarise(home_win_rate = mean(home_win, na.rm = TRUE),
+              away_win_rate = mean(away_win, na.rm = TRUE)) %>%
+    pivot_longer(cols = c(home_win_rate, away_win_rate), names_to = "location", values_to = "win_rate") %>%
+    mutate(location = factor(location, levels = c("home_win_rate", "away_win_rate"), labels = c("Home Win Rate", "Away Win Rate")))
+  
+  ggplot(comp_data, aes(x = location, y = win_rate, fill = location)) +
+    geom_bar(stat = "identity", position = position_dodge(width = 0.8)) +
+    geom_text(aes(label = scales::percent(win_rate)),
+              position = position_dodge(width = 0.8), vjust = -0.5, size = 3.5) +
+    scale_fill_manual(values = c("Home Win Rate" = "blue", "Away Win Rate" = "red"),
+                      labels = c("Home Goals", "Away Goals")) +
+    ylim(0, 1) +
+    labs(title = paste("Win Rates for", competition), y = "Win Rate", x = "", fill = "Goal Type") +
+    theme_minimal() +
+    theme(legend.position = "bottom")
+}
+
+# On applique la fonction à chaque compétition on cree un graphique
+plots <- lapply(major_competitions, function(comp) create_win_rate_plot(results, comp))
+
+# Affichage des graphiques côte à côte
+do.call(grid.arrange, c(plots, ncol = 2))
+
+
+################################
+
+
+# Calcul de l'efficacité offensive et défensive
+team_efficiency <- results %>%
+  # Calcul des buts marqués et concédés à domicile
+  mutate(home_goals_scored = home_score,
+         home_goals_conceded = away_score) %>%
+  group_by(home_team) %>%
+  summarise(avg_home_goals_scored = mean(home_goals_scored, na.rm = TRUE),
+            avg_home_goals_conceded = mean(home_goals_conceded, na.rm = TRUE)) %>%
+  # Calcul des buts marqués et concédés à l'extérieur
+  inner_join(
+    results %>%
+      mutate(away_goals_scored = away_score,
+             away_goals_conceded = home_score) %>%
+      group_by(away_team) %>%
+      summarise(avg_away_goals_scored = mean(away_goals_scored, na.rm = TRUE),
+                avg_away_goals_conceded = mean(away_goals_conceded, na.rm = TRUE)),
+    by = c("home_team" = "away_team")
+  ) %>%
+  
+  rename(team = home_team) %>%
+  select(team, everything())
+
+
+# On définit une liste des pays pour chaque tournoi majeur
+top_5_countries_fifawolrdcup <- c("Brazil", "Germany", "Argentina", "Italy", "France")
+top_5_countries_copaamerica <- c("Argentina", "Brazil", "Chile", "Bolivia", "Uruguay")
+top_5_countries_uefa <- c("England", "France", "Germany", "Italy", "Netherlands")
+top_5_countries_african <- c("Egypte", "Cameroon", "Ghana", "Nigeria", "Algeria", "Ivory Coast")
+
+# Préparation des données pour chaque tournoi avec une colonne supplémentaire pour le tournoi
+team_efficiency_worldcup <- team_efficiency %>%
+  filter(team %in% top_5_countries_fifawolrdcup) %>%
+  mutate(tournament = "FIFA World Cup")
+
+team_efficiency_copaamerica <- team_efficiency %>%
+  filter(team %in% top_5_countries_copaamerica) %>%
+  mutate(tournament = "Copa America")
+
+team_efficiency_uefa <- team_efficiency %>%
+  filter(team %in% top_5_countries_uefa) %>%
+  mutate(tournament = "UEFA Euro")
+
+team_efficiency_african <- team_efficiency %>%
+  filter(team %in% top_5_countries_african) %>%
+  mutate(tournament = "African Cup of Nations")
+
+# Cration d' un graphique pour chaque tournoi
+plot_worldcup <- ggplot(team_efficiency_worldcup, aes(x = avg_home_goals_scored + avg_away_goals_scored, y = avg_home_goals_conceded + avg_away_goals_conceded, label = team, color = team)) +
+  geom_point(size = 5) + 
+  labs(title = "FIFA World Cup")+ xlab("Moyenne des Buts Marqués (Domicile + Extérieur)")+ ylab(" Buts Concédés ")
+
+plot_copaamerica <- ggplot(team_efficiency_copaamerica, aes(x = avg_home_goals_scored + avg_away_goals_scored, y = avg_home_goals_conceded + avg_away_goals_conceded, label = team, color = team)) +
+  geom_point(size = 5) + 
+  labs(title = "Copa America")+ xlab("Moyenne des Buts Marqués (Domicile + Extérieur)")+ ylab("Moyennes des ")
+
+plot_uefa <- ggplot(team_efficiency_uefa, aes(x = avg_home_goals_scored + avg_away_goals_scored, y = avg_home_goals_conceded + avg_away_goals_conceded, label = team, color = team)) +
+  geom_point(size = 5) + 
+  labs(title = "UEFA Euro")+ xlab("Moyenne des Buts Marqués (Domicile + Extérieur)")+ ylab(" Buts   Concédés ")
+
+plot_african <- ggplot(team_efficiency_african, aes(x = avg_home_goals_scored + avg_away_goals_scored, y = avg_home_goals_conceded + avg_away_goals_conceded, label = team, color = team)) +
+  geom_point(size = 5) + 
+  labs(title = "African Cup of Nations")+ xlab("Moyenne des Buts Marqués (Domicile + Extérieur)")+ ylab("Moyenne des")
+
+
+grid.arrange(plot_worldcup, plot_copaamerica, plot_uefa, plot_african, ncol = 1)
+# Création d' un dataframe avec les valeurs moyennes des buts marqués et concédés pour chaque équipe
+team_stats <- data.frame(
+  Team = team_efficiency$team,
+  Avg_Goals_Scored = team_efficiency$avg_home_goals_scored + team_efficiency$avg_away_goals_scored,
+  Avg_Goals_Conceded = team_efficiency$avg_home_goals_conceded + team_efficiency$avg_away_goals_conceded
+)
+
+team_stats <- data.frame(
+  Team = team_efficiency$team,
+  Avg_Goals_Scored = team_efficiency$avg_home_goals_scored + team_efficiency$avg_away_goals_scored,
+  Avg_Goals_Conceded = team_efficiency$avg_home_goals_conceded + team_efficiency$avg_away_goals_conceded
+)
+
+# Filtrer le dataframe en fonction des listes de pays pour chaque tournoi
+team_stats_fifawolrdcup <- team_stats[team_stats$Team %in% top_5_countries_fifawolrdcup, ]
+team_stats_copaamerica <- team_stats[team_stats$Team %in% top_5_countries_copaamerica, ]
+team_stats_uefa <- team_stats[team_stats$Team %in% top_5_countries_uefa, ]
+team_stats_african <- team_stats[team_stats$Team %in% top_5_countries_african, ]
+
+# Afficher les valeurs pour chaque tournoi
+print("FIFA World Cup")
+print(team_stats_fifawolrdcup)
+
+print("Copa America")
+print(team_stats_copaamerica)
+
+print("UEFA Euro")
+print(team_stats_uefa)
+
+print("African Cup of Nations")
+print(team_stats_african)
