@@ -36,3 +36,21 @@ install.packages("ggplot2")
 install.packages("corrplot")
 install.packages("fmsb")
 
+## Structure des Données
+
+Les données utilisées dans ce projet sont structurées comme suit :
+
+goalscorers.csv : Contient des informations sur les buteurs, y compris la date, les équipes et les minutes des buts.
+results.csv : Contient les résultats des matchs, y compris les scores et les équipes.
+
+
+
+
+## Utilisation
+Pour exécuter les scripts d'analyse, ouvrez les fichiers .R dans votre IDE R préféré et exécutez-les. Assurez-vous que les fichiers de données sont dans le même répertoire que les scripts.
+
+
+
+## Contact
+
+ARFA Amine - arfa@insa-toulouse.fr
