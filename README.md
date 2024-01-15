@@ -6,6 +6,18 @@ Ce projet vise à analyser divers aspects des matchs de football, y compris les 
 
 Le projet utilise des données de football pour mener une série d'analyses statistiques. Il explore des aspects tels que les meilleurs buteurs, la distribution des buts, les taux de victoire à domicile et à l'extérieur, et plus encore. Ces analyses sont réalisées à l'aide du langage de programmation R et de plusieurs bibliothèques pour le traitement et la visualisation des données.
 
+
+
+## Utilisation
+Pour exécuter les scripts d'analyse, ouvrez les fichiers .R dans votre IDE R préféré et exécutez-les. Assurez-vous que les fichiers de données sont dans le même répertoire que les scripts.
+
+
+
+## Contact
+
+ARFA Amine - arfa@insa-toulouse.fr
+
+
 ## Dépendances
 
 - R
@@ -35,6 +47,7 @@ install.packages("patchwork")
 install.packages("ggplot2")
 install.packages("corrplot")
 install.packages("fmsb")
+<<<<<<< HEAD
 
 ## Structure des Données
 
@@ -54,3 +67,5 @@ Pour exécuter les scripts d'analyse, ouvrez les fichiers .R dans votre IDE R pr
 ## Contact
 
 ARFA Amine - arfa@insa-toulouse.fr
+=======
+>>>>>>> 7fe87807288c6b6b0864370a222277f59d0c4294
